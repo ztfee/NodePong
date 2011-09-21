@@ -9,8 +9,7 @@
 //      NETWORK CODE
 
 // handshake and connect to the server through the transport of Socket.io's choice
-var socket = new io.Socket(null, {port: 80, rememberTransport: false});
-socket.connect();
+var socket = io.connect();
 
 // this is triggered by the server's 'broadcast' and 'send' functions,
 // it passes messages to the 'command' function.
@@ -30,7 +29,7 @@ function validateName() {
   valid = ( /[^A-Za-z\d ]/.test(name)==false);
   if (name.length < 1) valid = false
   
-  if (valid) socket.send({type:'validate', name:name});
+  if (valid) socket.json.send({type:'validate', name:name});
   else {
     $('#entername').select();
     loginAlert("INVALID NAME, TRY AGAIN");
@@ -58,7 +57,7 @@ function play() {
   $('#spectate').css('visibility','visible');
 
   // send ready message to server
-  socket.send({type:'ready', name:playerName});
+  socket.json.send({type:'ready', name:playerName});
 }
 
 // autogenerate a random 5-letter ID for testing
@@ -85,7 +84,7 @@ function spectate() {
   $('#spectate').css('visibility', 'hidden');
   $('#login').css('display', 'none');
   //$('#alert').css('display', 'none');
-  socket.send({type:'spectating', name:playerName});
+  socket.json.send({type:'spectating', name:playerName});
 }
 
 // switch to play interface
@@ -163,7 +162,7 @@ var testMode = false;
 function command(msg){
 
   // respond to server with confirmation message
-  if (playing) socket.send({type:'heartBeat'});
+  if (playing) socket.json.send({type:'heartBeat'});
 
   // should go through the server code and make sure these are all needed
   switch(msg.type) {
@@ -190,7 +189,7 @@ function command(msg){
       break;
 
     case 'playing':
-      socket.send({type:"log", what:"PLAYING"});
+      socket.json.send({type:"log", what:"PLAYING"});
       if (msg.paddle == 'p1' || msg.paddle == 'p2') {
         if (testMode) readout.html('playing: '+msg.paddle);
         // make sure to kill any previous game
@@ -219,7 +218,7 @@ function command(msg){
 
         paddle.css('top', '50%');
         //paddle.css('background-color', 'blue');
-        socket.send({type:'movePaddle', which:playing, pos:lastY, goal:lastY});
+        socket.json.send({type:'movePaddle', which:playing, pos:lastY, goal:lastY});
         playLoop(msg.delay); // normally 1 - .8 seems to reduce lag?
       }
       break;
@@ -254,7 +253,7 @@ function command(msg){
       break;
     
     case 'moveBall': // move ball
-      socket.send({type:"log", what:"MOVEBALL"});
+      socket.json.send({type:"log", what:"MOVEBALL"});
       // kill any existing or queued animates()
       xball.stop(true);
       ball.stop(true);
@@ -306,7 +305,7 @@ function command(msg){
           // P2 SCORED
             scored = true;
             
-            socket.send({type:'score', me:playing, which:'p2'});
+            socket.json.send({type:'score', me:playing, which:'p2'});
             //if (testMode) readout2.html("complete at 0: returned: "+returned+", scored: "+scored);
           }
 
@@ -315,7 +314,7 @@ function command(msg){
           // P1 SCORED
             scored = true;
             
-            socket.send({type:'score', me:playing, which:'p1'});
+            socket.json.send({type:'score', me:playing, which:'p1'});
             //if (testMode) readout2.html("complete at 97: returned: "+returned+", scored: "+scored);
           }
         }
@@ -371,7 +370,7 @@ function command(msg){
       break;
       
     case 'endgame':
-      socket.send({type:"log", what:"ENDGAME"});
+      socket.json.send({type:"log", what:"ENDGAME"});
       if (testMode) readout2.html("FORFEIT");
       colliding = false;
       playing = false;
@@ -456,7 +455,7 @@ function movePaddle() {
 
   // update if mouse moved since last goal was sent
   if (lastGoal != goal) {
-    socket.send({type:'movePaddle', which:playing, pos:lastY, goal:goal});
+    socket.json.send({type:'movePaddle', which:playing, pos:lastY, goal:goal});
   }
   // store goal
   lastGoal = goal;
@@ -507,7 +506,7 @@ function collisionDetection() {
 
     //if (readout) $("#returned").html('ball.position().top: '+ball.position().top+'<br>ball.height()/2: '+ball.height()/2+    '<br>ball.position().top + ball.height(): '+(ball.position().top + ball.height()/2)+'<br>which.position().top: '+which.position().top+'<br>relative px: '+(ball.position().top + ball.height()/2 - which.position().top)+'<br>which.height(): '+which.height()+'<br>angle: '+rnd(angle));
 
-    socket.send({type: 'return',
+    socket.json.send({type: 'return',
                  me: playing,
                  startx: ballx,
                  starty: bally/court.height()*100,

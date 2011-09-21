@@ -36,9 +36,8 @@ server = http.createServer(function(req, res){
     else if (doctype == 'js') contentType = 'text/javascript';
     else if (doctype == 'css') contentType = 'text/css';
 
-    res.writeHead(200, {'contentType': contentType})
-    res.write(data, 'utf8');
-    res.end();
+    res.writeHead(200, {'Content-Type': contentType})
+    res.end(data);
   });
 }),
 
@@ -48,7 +47,7 @@ send404 = function(res){
   res.end();
 };
 
-server.listen(80); // http port
+server.listen(8081); // http port
 
 ///////////////////////////////
 //        SESSION CODE
@@ -63,24 +62,24 @@ var player1 = 0, player2 = 0; // current players
 
 // helper function with session checking to prevent send errors
 function send(client, message){
-  if (contains(sessions, client)) io.clients[client].send(message);
+  if (contains(sessions, client)) io.sockets.sockets[client].json.send(message);
 }
 
 
 
 // ***** CLIENT CONNECT ***** //
 
-io.on('connection', function(client){
-  if (!contains(sessions, client.sessionId)) { // prevent double connections
-    sessions.push(client.sessionId);
-    log('\nCONNECTION NUMBER '+sessions.length+': '+client.sessionId);
+io.sockets.on('connection', function(client){
+  if (!contains(sessions, client.id)) { // prevent double connections
+    sessions.push(client.id);
+    log('\nCONNECTION NUMBER '+sessions.length+': '+client.id);
   }
   
   if (gameOn) {
-    send(client.sessionId, {type:'gameon', player1:player1.name, player2:player2.name});
+    send(client.id, {type:'gameon', player1:player1.name, player2:player2.name});
   }
   
-  updateLeaderboard(client.sessionId);
+  updateLeaderboard(client.id);
   updatePlayerCounts();
 
   // get current paddle positions and animate
@@ -109,7 +108,7 @@ io.on('connection', function(client){
   //log('percentCompleted: '+percentCompleted);
   //log('currentPos: '+currentPos);
   
-  send(client.sessionId, {type:'movePaddle', which:'p1', pos:currentPos, goal:p1goal, init:true});
+  send(client.id, {type:'movePaddle', which:'p1', pos:currentPos, goal:p1goal, init:true});
 
   // same for player 2
   var elapsedTime = connectTime - p2posTime;
@@ -134,25 +133,25 @@ io.on('connection', function(client){
   //log('percentCompleted: '+percentCompleted);
   //log('currentPos: '+currentPos);
   
-  send(client.sessionId, {type:'movePaddle', which:'p2', pos:currentPos, goal:p2goal, init:true});
-
-
+  send(client.id, {type:'movePaddle', which:'p2', pos:currentPos, goal:p2goal, init:true});
 
   // receive and parse messages from client
   client.on('message', function(msg){
     // to log all messages from clients:
-    //var logmsg = 'msg: ';
-    //for (i in msg) { logmsg += (i+':'+msg[i]+' '); }
-    //log(logmsg);
+    /*
+    var logmsg = 'msg: ';
+    for (i in msg) { logmsg += (i+':'+msg[i]+' '); }
+    log(logmsg);
+    */
 
     // receive and broadcast paddle data
     if (msg.type == 'movePaddle') {
       //log("movePaddle, which: "+msg.which+", goal: "+rnd(msg.goal));
       // send client's paddle position and goal to everybody except client
-      io.broadcast({type: 'movePaddle', which:msg.which, pos:msg.pos, goal:msg.goal}, client.sessionId);
-      //io.broadcast({type: 'movePaddle', which:msg.which, pos:msg.pos, goal:msg.goal});
+      io.sockets.json.send({type: 'movePaddle', which:msg.which, pos:msg.pos, goal:msg.goal}, client.id);
+      //io.sockets.json.send({type: 'movePaddle', which:msg.which, pos:msg.pos, goal:msg.goal});
       
-      if (client.sessionId == player2.id) {
+      if (client.id == player2.id) {
         if (p1heartBeat == false) {
           p1skippedBeat++;
           //log('p1 SKIPPED: '+p1skippedBeat);
@@ -166,7 +165,7 @@ io.on('connection', function(client){
         p1posTime = new Date();
         
       }
-      if (client.sessionId == player1.id) {
+      if (client.id == player1.id) {
         if (p2heartBeat == false) {
           p2skippedBeat++;
           //log('p2 SKIPPED: '+p2skippedBeat);
@@ -202,7 +201,7 @@ io.on('connection', function(client){
         return false;
       }
       if (!msg.me) {
-        log(client.sessionID+' reports '+msg.which+' scored but is not playing');
+        log(client.id+' reports '+msg.which+' scored but is not playing');
         return false;
       }
       if (msg.which == 'p1' && p1scored == 0 && p2scored != 1 && p2returned != 1) {
@@ -228,7 +227,7 @@ io.on('connection', function(client){
         return false;
       }
       if (!msg.me) {
-        log(client.sessionID+' reports '+msg.which+' returned but is not playing');
+        log(client.id+' reports '+msg.which+' returned but is not playing');
         return false;
       }
       if ( msg.which == 'p1' && p1returned == 0) {
@@ -249,7 +248,7 @@ io.on('connection', function(client){
       starty = msg.starty;
       endy = msg.endy;
   
-      //log(parseInt(client.sessionId/100000000000000)+": "+msg.which+" RETURN1");
+      //log(parseInt(client.id/100000000000000)+": "+msg.which+" RETURN1");
       //log(' startx: '+rnd(startx)+', starty: '+rnd(starty)+', angle: '+rnd(msg.angle)+", p1returned: "+p1returned+", p2returned: "+p2returned);
   
       timeFactor *= .9; // increase speed with every volley (.9)
@@ -290,7 +289,7 @@ io.on('connection', function(client){
         //log('x: '+x);
         //log('leaders['+x+'].name: '+leaders[x].name);
         if (msg.name == leaders[x].name) {
-          send(client.sessionId, {type:'validate', valid:false, alert:"NAME IN USE, TRY AGAIN"});
+          send(client.id, {type:'validate', valid:false, alert:"NAME IN USE, TRY AGAIN"});
           return false;
         }
       }
@@ -298,11 +297,11 @@ io.on('connection', function(client){
         //log('x: '+x);
         //log('queue['+x+'].name: '+queue[x].name);
         if (msg.name == queue[x].name) {
-          send(client.sessionId, {type:'validate', valid:false, alert:"NAME IN USE, TRY AGAIN"});
+          send(client.id, {type:'validate', valid:false, alert:"NAME IN USE, TRY AGAIN"});
           return false;
         }
       }
-      send(client.sessionId, {type:'validate', valid:true});
+      send(client.id, {type:'validate', valid:true});
     }
 
     // session announces readiness to play
@@ -310,10 +309,10 @@ io.on('connection', function(client){
       //log(' checking sessions, length: '+queue.length);
       //for (x in sessions) log('s '+sessions[x]);
       //for (x in queue) log('q '+queue[x].id);
-      if (!hasAttr(queue, 'id', client.sessionId)) { // prevent double additions
-      //if (!(contains(sessions, client.sessionId))) { // prevent double additions
+      if (!hasAttr(queue, 'id', client.id)) { // prevent double additions
+      //if (!(contains(sessions, client.id))) { // prevent double additions
 
-        var idx = spectators.indexOf(hasAttr(spectators, 'id', client.sessionId));
+        var idx = spectators.indexOf(hasAttr(spectators, 'id', client.id));
         if (idx != -1) {
           //log(' spectator now playing');
           queue.push(spectators[idx]);
@@ -321,22 +320,22 @@ io.on('connection', function(client){
         } else {
 
           // player object definition
-          player = {id:client.sessionId, name:msg.name, wins:0, losses:0}
+          player = {id:client.id, name:msg.name, wins:0, losses:0}
 
           // add player to waiting list
           queue.push(player);
         }
 
-        send(client.sessionId, {type:'html', which:'position', html:queue.length});
+        send(client.id, {type:'html', which:'position', html:queue.length});
         send(player.id, {type:'display', alert:'WELCOME '+player.name, delay:500});
 
-        updateLeaderboard(client.sessionId);
+        updateLeaderboard(client.id);
         updatePlayerCounts();
 
       } else {
         //log(' session already seen');
         for (x in queue) {
-          if (client.sessionId == queue[x].id) { // identify existing player
+          if (client.id == queue[x].id) { // identify existing player
             player = queue[x];
             break;
           }
@@ -344,23 +343,23 @@ io.on('connection', function(client){
       
       }
       
-      log('> ready: '+msg.name+' '+client.sessionId)
+      log('> ready: '+msg.name+' '+client.id)
 
       if (queue.length == 1) { // lonely player1...
         setTimeout(function() { // wait two seconds
           if (queue.length == 1) { // if still lonely, send a sad message
-            send(client.sessionId, {type:'display', alert:'WAITING FOR CHALLENGER'})
+            send(client.id, {type:'display', alert:'WAITING FOR CHALLENGER'})
           }
         }, 3000);
         var statusmsg = player.name + ' - AWAITING CHALLENGER';
-        send(client.sessionId, {type:'html', which:'status', html:statusmsg});
-        send(client.sessionId, {type:'css', which:'status', property:'background-color', value:'#666'});
-        send(client.sessionId, {type:'css', which:'status', property:'color', value:'white'});
+        send(client.id, {type:'html', which:'status', html:statusmsg});
+        send(client.id, {type:'css', which:'status', property:'background-color', value:'#666'});
+        send(client.id, {type:'css', which:'status', property:'color', value:'white'});
       } else if (queue.length == 2) {
         var statusmsg = player.name+ ' - READY';
-        send(client.sessionId, {type:'html', which:'status', html:statusmsg});
-        send(client.sessionId, {type:'css', which:'status', property:'background-color', value:'aqua'});
-        send(client.sessionId, {type:'css', which:'status', property:'color', value:'fuchsia'});
+        send(client.id, {type:'html', which:'status', html:statusmsg});
+        send(client.id, {type:'css', which:'status', property:'background-color', value:'aqua'});
+        send(client.id, {type:'css', which:'status', property:'color', value:'fuchsia'});
       } else {
         updateQueuePositions();
       }
@@ -387,37 +386,37 @@ io.on('connection', function(client){
     // move player from queue to spectators
     if (msg.type == 'spectating') {
       var statusmsg = ((msg.name) ? msg.name + ' - ' : '') + 'SPECTATING';
-      send(client.sessionId, {type:'html', which:'status', html:statusmsg});
-      send(client.sessionId, {type:'css', which:'status', property:'background-color', value:'#666'});
-      send(client.sessionId, {type:'css', which:'status', property:'color', value:'white'});
+      send(client.id, {type:'html', which:'status', html:statusmsg});
+      send(client.id, {type:'css', which:'status', property:'background-color', value:'#666'});
+      send(client.id, {type:'css', which:'status', property:'color', value:'white'});
 
-      tapOut(client.sessionId);
+      tapOut(client.id);
     }
 
     // player received last message from server
     if (msg.type == 'heartBeat') {
-      if (client.sessionId == player1.id) {
+      if (client.id == player1.id) {
         //log('heartbeat: p1 '+player1.id);
         p1heartBeat = true;
       }
-      else if (client.sessionId == player2.id) {
+      else if (client.id == player2.id) {
         //log('heartbeat: p2 '+player2.id);
         p2heartBeat = true;
       }
     }
 
     if (msg.type == 'log') {
-      log(":"+parseInt(client.sessionId/100000000000000)+': '+msg.what);
+      log(":"+parseInt(client.id/100000000000000)+': '+msg.what);
     }
 
   });
 
   client.on('disconnect', function(){
-    log('\nDISCONNECT: '+client.sessionId);
+    log('\nDISCONNECT: '+client.id);
 
-    tapOut(client.sessionId);
+    tapOut(client.id);
     
-    var idx = sessions.indexOf(client.sessionId);
+    var idx = sessions.indexOf(client.id);
     if (idx != -1) sessions.splice(idx, 1);
   });
 
@@ -455,8 +454,8 @@ function tapOut(sessionId) {
 // move ball
 function moveBall(xTime, inityTime, yTime) {
   //log('  moveBall: startx: '+rnd(startx)+', endx: '+rnd(endx)+', starty: '+rnd(starty)+', xTime: '+rnd(xTime)+', inityTime: '+rnd(inityTime)+', yTime: '+yTime);
-  //io.broadcast({type:'moveBall', startx:startx, starty:starty, endx:endx, deltay:deltay, xTime:xTime, yTime:ytime});
-  io.broadcast({type:'moveBall', startx:startx, endx:endx, starty:starty, xTime:xTime, inityTime:inityTime, yTime:yTime});
+  //io.sockets.json.send({type:'moveBall', startx:startx, starty:starty, endx:endx, deltay:deltay, xTime:xTime, yTime:ytime});
+  io.sockets.json.send({type:'moveBall', startx:startx, endx:endx, starty:starty, xTime:xTime, inityTime:inityTime, yTime:yTime});
 }
 
 
@@ -506,8 +505,8 @@ function score() {
 }
 
 function updateScores() {
-  io.broadcast({type:'score', which:'score1', val:score1});
-  io.broadcast({type:'score', which:'score2', val:score2});
+  io.sockets.json.send({type:'score', which:'score1', val:score1});
+  io.sockets.json.send({type:'score', which:'score2', val:score2});
 }
 
 // get ordinal for number
@@ -579,7 +578,7 @@ function updateLeaderboard(id) {
   if (sessions.length > 10 && id) {
     send(id, {type:'html', which:'scoretable', html:leaderboardHTML});
   } else {
-    io.broadcast({type:'html', which:'scoretable', html:leaderboardHTML});
+    io.sockets.json.send({type:'html', which:'scoretable', html:leaderboardHTML});
   }
 }
 
@@ -596,7 +595,7 @@ function updatePlayerCounts() {
   } else {
     numString += 'no spectators';
   }
-  io.broadcast({type:'html', which:'playerCounts', html:numString});
+  io.sockets.json.send({type:'html', which:'playerCounts', html:numString});
 }
 
 
@@ -700,7 +699,7 @@ function newgame(id) {
     return false;
   }
 
-  io.broadcast({type:'gameon', player1:player1.name, player2:player2.name});
+  io.sockets.json.send({type:'gameon', player1:player1.name, player2:player2.name});
   var statusmsg = player1.name + ' - PLAYING';
   send(player1.id, {type:'html', which:'status', html:statusmsg});
   send(player1.id, {type:'css', which:'status', property:'background-color', value:'fuchsia'});
@@ -750,7 +749,7 @@ function newgame(id) {
 
 // helper function
 function setcss(which, property, value){
-  io.broadcast({type:'css', which:which, property:property, value:value});
+  io.sockets.json.send({type:'css', which:which, property:property, value:value});
 }
 
 // master event loop
@@ -797,7 +796,7 @@ function gameover(type, which) {
   playing = false;
   newgameID = false;
 
-  io.broadcast({type:'endgame'});
+  io.sockets.json.send({type:'endgame'});
 
   // WIN
   if (type == 'win') {
@@ -812,7 +811,7 @@ function gameover(type, which) {
     send(loser.id, {type:'display', alert:'YOU LOSE'});
 
     // broadcast to everybody except [winner, loser]
-    io.broadcast({type:'display', alert:winner.name+' WINS', id:0}, [winner.id, loser.id]);
+    io.sockets.json.send({type:'display', alert:winner.name+' WINS', id:0}, [winner.id, loser.id]);
 
     // increment wins/losses
     winner.wins++;
@@ -838,7 +837,7 @@ function gameover(type, which) {
     winner = (which == player1) ? player2 : player1;
 
     log('FORFEIT: '+loser.id + ': '+loser.name);
-    io.broadcast({type:'display', alert:loser.name+' FORFEITS'});
+    io.sockets.json.send({type:'display', alert:loser.name+' FORFEITS'});
 
     winner.wins ++;
 
