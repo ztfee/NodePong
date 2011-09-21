@@ -947,5 +947,3 @@ function english(yval) {
 
   return speed * 1000;
 }
-
-// END server.js

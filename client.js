@@ -587,5 +587,3 @@ $(document).ready(function() {
   setBodyScale();
   
 });
-
-// END client.js
